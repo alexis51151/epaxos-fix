@@ -9,13 +9,17 @@
 - A detailed explanation of the problem is available [here](
 http://arxiv.org/abs/1906.10917).
 
-## FAQ
+## Fix
 
-- _How was the bug discovered?_  
-When auditing the recovery mechanism of EPaxos.
+- There is a fix available relatively to the problem raised by Pierre Sutra (under `tla+/EgalitarianPaxosFix.tla`).
+- The fix is based on a new var called `vbal` which stores the last ballot at which a replica has voted.
 
-- _Is there a fix?_  
-Each process needs to maintain the last ballot at which it voted.
-This requires an additional ballot variable in the algorithm.
-Such an approach is implemented in the [following](https://github.com/otrack/epaxos) repository.
-A proof of correctness for the resulting algorithm is provided (under `papers/EPaxosProofs.pdf`).
+## Proof of correctness
+
+- A proof of correctness for the resulting algorithm is provided (under `papers/EPaxosProofs.pdf`).
+- It aims at being proven formally by model checking.
+
+## Authors
+
+- Alexis Le Glaunec
+- Pierre Sutra
