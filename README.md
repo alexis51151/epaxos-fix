@@ -1,4 +1,4 @@
-# On the correctness of Egalitarian Paxos
+# Fixing Egalitarian Paxos
 
 ## Highlights
 
@@ -18,4 +18,4 @@ When auditing the recovery mechanism of EPaxos.
 Each process needs to maintain the last ballot at which it voted.
 This requires an additional ballot variable in the algorithm.
 Such an approach is implemented in the [following](https://github.com/otrack/epaxos) repository.
-The correctness of the resulting algorithm has not been established yet.
+A proof of correctness for the resulting algorithm is provided (under `papers/EPaxosProofs.pdf`).
