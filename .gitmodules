@@ -1,6 +1,3 @@
-[submodule "docs/epaxos-proof-correctness"]
-	path = docs/epaxos-proof-correctness
-	url = https://github.com/alexis51151/epaxos-proof-correctness.git
 [submodule "epaxos-proof-correctness"]
 	path = docs
 	url = https://github.com/alexis51151/epaxos-proof-correctness.git
