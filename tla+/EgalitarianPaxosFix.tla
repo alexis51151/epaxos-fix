@@ -123,7 +123,8 @@ TypeOK ==
                                        ballot: Nat \X Replicas,
                                        cmd: Commands \cup {none},
                                        deps: SUBSET Instances,
-                                       seq: Nat]]
+                                       seq: Nat,
+				       vbal: Nat \cup {-1} \X Replicas]]
     /\ proposed \in SUBSET Commands
     /\ executed \in [Replicas -> SUBSET (Nat \X Commands)]
     /\ sentMsg \in SUBSET Message
@@ -169,7 +170,8 @@ StartPhase1(C, cleader, Q, inst, ballot, oldMsg) ==
                                   ballot |-> ballot,
                                   cmd    |-> C,
                                   deps   |-> newDeps,
-                                  seq    |-> newSeq ]}]
+                                  seq    |-> newSeq,
+				  vbal   |-> ballot]}]
         /\ leaderOfInst' = [leaderOfInst EXCEPT ![cleader] = @ \cup {inst}]
         /\ sentMsg' = (sentMsg \ oldMsg) \cup 
                                 [type  : {"pre-accept"},
@@ -210,7 +212,8 @@ Phase1Reply(replica) ==
                                       ballot |-> msg.ballot,
                                       cmd    |-> msg.cmd,
                                       deps   |-> newDeps,
-                                      seq    |-> newSeq]}]
+                                      seq    |-> newSeq,
+				      vbal   |-> msg.ballot]}]
                 /\ sentMsg' = (sentMsg \ {msg}) \cup
                                     {[type  |-> "pre-accept-reply",
                                       src   |-> replica,
@@ -253,7 +256,8 @@ Phase1Fast(cleader, i, Q) ==
                                           ballot |-> record.ballot,
                                           cmd    |-> record.cmd,
                                           deps   |-> r.deps,
-                                          seq    |-> r.seq ]}]
+                                          seq    |-> r.seq, 
+					  vbal   |-> record.vbal]}]
                 /\ sentMsg' = (sentMsg \ replies) \cup
                             {[type  |-> "commit",
                             inst    |-> i,
@@ -287,7 +291,8 @@ Phase1Slow(cleader, i, Q) ==
                                           ballot |-> record.ballot,
                                           cmd    |-> record.cmd,
                                           deps   |-> finalDeps,
-                                          seq    |-> finalSeq ]}]
+                                          seq    |-> finalSeq,
+				          vbal   |-> record.vbal]}]
                 /\ \E SQ \in SlowQuorums(cleader):
                    (sentMsg' = (sentMsg \ replies) \cup
                             [type : {"accept"},
@@ -314,7 +319,8 @@ Phase2Reply(replica) ==
                                   ballot |-> msg.ballot,
                                   cmd    |-> msg.cmd,
                                   deps   |-> msg.deps,
-                                  seq    |-> msg.seq]}]
+                                  seq    |-> msg.seq,
+				  vbal	 |-> msg.ballot]}]
             /\ sentMsg' = (sentMsg \ {msg}) \cup
                                 {[type  |-> "accept-reply",
                                   src   |-> replica,
@@ -345,7 +351,8 @@ Phase2Finalize(cleader, i, Q) ==
                                       ballot |-> record.ballot,
                                       cmd    |-> record.cmd,
                                       deps   |-> record.deps,
-                                      seq    |-> record.seq ]}]
+                                      seq    |-> record.seq,
+				      vbal   |-> record.vbal]}]
             /\ sentMsg' = (sentMsg \ replies) \cup
                         {[type  |-> "commit",
                         inst    |-> i,
@@ -368,7 +375,8 @@ Commit(replica, cmsg) ==
                                       ballot   |-> cmsg.ballot,
                                       cmd      |-> cmsg.cmd,
                                       deps     |-> cmsg.deps,
-                                      seq      |-> cmsg.seq]}]
+                                      seq      |-> cmsg.seq,
+				      vbal     |-> cmsg.ballot]}]
         /\ committed' = [committed EXCEPT ![cmsg.inst] = @ \cup 
                                {<<cmsg.cmd, cmsg.deps, cmsg.seq>>}]
         /\ UNCHANGED << proposed, executed, crtInst, leaderOfInst,
@@ -410,7 +418,7 @@ ReplyPrepare(replica) ==
                               dst   |-> msg.src,
                               inst  |-> rec.inst,
                               ballot|-> msg.ballot,
-                              prev_ballot|-> rec.ballot,
+                              prev_ballot|-> rec.vbal,
                               status|-> rec.status,
                               cmd   |-> rec.cmd,
                               deps  |-> rec.deps,
@@ -421,7 +429,8 @@ ReplyPrepare(replica) ==
                               ballot|-> msg.ballot,
                               cmd   |-> rec.cmd,
                               deps  |-> rec.deps,
-                              seq   |-> rec.seq]}]
+                              seq   |-> rec.seq,
+			      vbal  |-> rec.vbal]}]
                  /\ IF rec.inst \in leaderOfInst[replica] THEN
                         /\ leaderOfInst' = [leaderOfInst EXCEPT ![replica] = 
                                                                 @ \ {rec.inst}]
@@ -437,7 +446,7 @@ ReplyPrepare(replica) ==
                               dst   |-> msg.src,
                               inst  |-> msg.inst,
                               ballot|-> msg.ballot,
-                              prev_ballot|-> << 0, replica >>,
+                              prev_ballot|-> << -1, replica >>,
                               status|-> "not-seen",
                               cmd   |-> none,
                               deps  |-> {},
@@ -448,7 +457,8 @@ ReplyPrepare(replica) ==
                               ballot|-> msg.ballot,
                               cmd   |-> none,
                               deps  |-> {},
-                              seq   |-> 0]}]
+                              seq   |-> 0,
+			      vbal  |-> -1]}]
               /\ UNCHANGED << proposed, executed, committed, crtInst, ballots,
                               leaderOfInst, preparing >> 
     
@@ -490,7 +500,8 @@ PrepareFinalize(replica, i, Q) ==
                                   ballot|-> rec.ballot,
                                   cmd   |-> acc.cmd,
                                   deps  |-> acc.deps,
-                                  seq   |-> acc.seq]}]
+                                  seq   |-> acc.seq,
+				  vbal  |-> rec.ballot]}]
                          /\ preparing' = [preparing EXCEPT ![replica] = @ \ {i}]
                          /\ leaderOfInst' = [leaderOfInst EXCEPT ![replica] = @ \cup {i}]
                          /\ UNCHANGED << proposed, executed, crtInst, committed, ballots >>
@@ -517,7 +528,8 @@ PrepareFinalize(replica, i, Q) ==
                                           ballot|-> rec.ballot,
                                           cmd   |-> pac.cmd,
                                           deps  |-> pac.deps,
-                                          seq   |-> pac.seq]}]
+                                          seq   |-> pac.seq,
+					  vbal  |-> rec.ballot]}]
                                  /\ preparing' = [preparing EXCEPT ![replica] = @ \ {i}]
                                  /\ leaderOfInst' = [leaderOfInst EXCEPT ![replica] = @ \cup {i}]
                                  /\ UNCHANGED << proposed, executed, crtInst, committed, ballots >>
@@ -592,7 +604,8 @@ ReplyTryPreaccept(replica) ==
                                       ballot|-> tpa.ballot,
                                       cmd   |-> tpa.cmd,
                                       deps  |-> tpa.deps,
-                                      seq   |-> tpa.seq]}]
+                                      seq   |-> tpa.seq,
+				      vbal  |-> tpa.ballot]}]
                   /\ UNCHANGED << proposed, executed, committed, crtInst, ballots,
                                   leaderOfInst, preparing >>
                       
@@ -620,7 +633,8 @@ FinalizeTryPreAccept(cleader, i, Q) ==
                               ballot|-> rec.ballot,
                               cmd   |-> rec.cmd,
                               deps  |-> rec.deps,
-                              seq   |-> rec.seq]}]
+                              seq   |-> rec.seq,
+			      vbal  |-> rec.ballot]}]
                   /\ UNCHANGED << proposed, executed, committed, crtInst, ballots,
                                   leaderOfInst, preparing >>
                \/ /\ \E tpr \in tprs: tpr.status \in {"accepted", "committed", "executed"}
