@@ -1,36 +1,3 @@
-
-Skip to content
-Pull requests
-Issues
-Marketplace
-Explore
-@alexis51151
-alexis51151 /
-epaxos-fix
-forked from otrack/on-epaxos-correctness
-
-0
-0
-
-    2
-
-Code
-Pull requests
-Actions
-Projects
-Wiki
-Security
-Insights
-
-    Settings
-
-epaxos-fix/tla+/EgalitarianPaxos.tla
-@otrack
-otrack initial version
-Latest commit 29e641c on 19 Jan 2019
-History
-1 contributor
-718 lines (642 sloc) 36.7 KB
 -------------------------- MODULE EgalitarianPaxos --------------------------
 
 EXTENDS Naturals, FiniteSets
@@ -749,18 +716,3 @@ THEOREM Spec => ([]TypeOK) /\ Nontriviality /\ Stability /\ Consistency
 \* Modification History
 \* Last modified Sat Aug 24 12:25:28 EDT 2013 by iulian
 \* Created Tue Apr 30 11:49:57 EDT 2013 by iulian
-
-    © 2021 GitHub, Inc.
-    Terms
-    Privacy
-    Security
-    Status
-    Help
-
-    Contact GitHub
-    Pricing
-    API
-    Training
-    Blog
-    About
-
