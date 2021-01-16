@@ -1,6 +1,6 @@
--------------------------- MODULE EgalitarianPaxos --------------------------
+-------------------------- MODULE EgalitarianPaxosFix --------------------------
 
-EXTENDS Naturals, FiniteSets
+EXTENDS Integers, FiniteSets
 
 -----------------------------------------------------------------------------
 
@@ -728,5 +728,6 @@ THEOREM Spec => ([]TypeOK) /\ Nontriviality /\ Stability /\ Consistency
 
 =============================================================================
 \* Modification History
+\* Last modified Sat Jan 16 11:49:14 CET 2021 by alexis51151
 \* Last modified Sat Aug 24 12:25:28 EDT 2013 by iulian
 \* Created Tue Apr 30 11:49:57 EDT 2013 by iulian
