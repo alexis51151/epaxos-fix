@@ -13,6 +13,7 @@ EXTENDS Integers, TLAPS, TLC
 
 CONSTANTS Acceptors, Values, Quorums
 
+
 ASSUME QuorumAssumption == 
           /\ Quorums \subseteq SUBSET Acceptors
           /\ \A Q1, Q2 \in Quorums : Q1 \cap Q2 # {}                 
@@ -51,7 +52,7 @@ Init == /\ msgs = {}
 (* with ballot b to a majority of acceptors.  It can do this only if it    *)
 (* has not already sent a 1a message for ballot b.                         *)
 (***************************************************************************)
-Phase1a(b) == /\ ~ \E m \in msgs : (m.type = "1a") /\ (m.bal = b)
+Phase1a(b) == /\ ~ \E m \in msgs : (m.type = "1a") /\ (m.bal = b) /\ (b > 0)
               /\ Send([type |-> "1a", bal |-> b])
               /\ UNCHANGED <<maxVBal, maxBal, maxVal>>
               
@@ -83,7 +84,7 @@ Phase1b(a) ==
 Phase2a(b) ==
   /\ ~ \E m \in msgs : (m.type = "2a") /\ (m.bal = b) 
   /\ \E v \in Values :
-       /\ \E Q \in Quorums :
+       /\ \/ \E Q \in Quorums :
             \E S \in SUBSET {m \in msgs : (m.type = "1b") /\ (m.bal = b)} :
                /\ \A a \in Q : \E m \in S : m.acc = a
                /\ \/ \A m \in S : m.maxVBal = -1
@@ -91,6 +92,7 @@ Phase2a(b) ==
                         /\ \A m \in S : m.maxVBal =< c
                         /\ \E m \in S : /\ m.maxVBal = c
                                         /\ m.maxVal = v
+          \/ b = 0
        /\ Send([type |-> "2a", bal |-> b, val |-> v])
   /\ UNCHANGED <<maxBal, maxVBal, maxVal>>
 
@@ -145,7 +147,7 @@ Consistency == \A v1, v2 \in Values : Chosen(v1) /\ Chosen(v2) => (v1 = v2)
 Messages ==      [type : {"1a"}, bal : Ballots]
             \cup [type : {"1b"}, bal : Ballots, maxVBal : Ballots \cup {-1},
                     maxVal : Values \cup {None}, acc : Acceptors]
-            \cup [type : {"2a"}, bal : Ballots, val : Values]
+            \cup [type : {"2a"  }, bal : Ballots, val : Values]
             \cup [type : {"2b"}, bal : Ballots, val : Values, acc : Acceptors]
         
 
@@ -369,14 +371,15 @@ THEOREM Invariant == Spec => []Inv
       <4>1a. UNCHANGED <<maxBal, maxVBal, maxVal>>
         BY <3>3 DEF Phase2a
       <4>2. PICK v \in Values :
-               /\ \E Q \in Quorums : 
-                     \E S \in SUBSET {m \in msgs : (m.type = "1b") /\ (m.bal = b)} :
-                        /\ \A a \in Q : \E m \in S : m.acc = a
-                        /\ \/ \A m \in S : m.maxVBal = -1
-                           \/ \E c \in 0..(b-1) : 
-                                 /\ \A m \in S : m.maxVBal =< c
-                                 /\ \E m \in S : /\ m.maxVBal = c
-                                                 /\ m.maxVal = v
+               /\ \/  \E Q \in Quorums : 
+                        \E S \in SUBSET {m \in msgs : (m.type = "1b") /\ (m.bal = b)} :
+                            /\ \A a \in Q : \E m \in S : m.acc = a
+                            /\ \/ \A m \in S : m.maxVBal = -1
+                               \/ \E c \in 0..(b-1) : 
+                                     /\ \A m \in S : m.maxVBal =< c
+                                     /\ \E m \in S : /\ m.maxVBal = c
+                                                     /\ m.maxVal = v
+                  \/ b = 0
                /\ Send([type |-> "2a", bal |-> b, val |-> v])
         BY <3>3 DEF Phase2a
       <4>. DEFINE mm == [type |-> "2a", bal |-> b, val |-> v]
@@ -388,47 +391,53 @@ THEOREM Invariant == Spec => []Inv
                                 => ma = m
         BY <4>1, <4>3, Isa DEF MsgInv
       <4>10. SafeAt(v,b)
-        <5>0. PICK Q \in Quorums, 
-                   S \in SUBSET {m \in msgs : (m.type = "1b") /\ (m.bal = b)} :
-                     /\ \A a \in Q : \E m \in S : m.acc = a
-                     /\ \/ \A m \in S : m.maxVBal = -1
-                        \/ \E c \in 0..(b-1) : 
-                              /\ \A m \in S : m.maxVBal =< c
-                              /\ \E m \in S : /\ m.maxVBal = c
-                                              /\ m.maxVal = v
-          BY <4>2, Zenon
-        <5>1. CASE \A m \in S : m.maxVBal = -1
-          \* In that case, no acceptor in Q voted in any ballot less than b,
-          \* by the last conjunct of MsgInv for type "1b" messages, and that's enough
-          BY <5>1, <5>0 DEF TypeOK, MsgInv, SafeAt, WontVoteIn, Messages
-        <5>2. ASSUME NEW c \in 0 .. (b-1),
-                     \A m \in S : m.maxVBal =< c,
-                     NEW ma \in S, ma.maxVBal = c, ma.maxVal = v
-              PROVE  SafeAt(v,b)
-          <6>. SUFFICES ASSUME NEW d \in 0 .. (b-1)
-                        PROVE  \E QQ \in Quorums : \A q \in QQ : 
-                                  VotedForIn(q,v,d) \/ WontVoteIn(q,d)
-            BY Zenon DEF SafeAt
-          <6>1. CASE d \in 0 .. (c-1)
-            \* The "1b" message for v with maxVBal value c must have been safe
-            \* according to MsgInv for "1b" messages and lemma VotedInv, 
-            \* and that proves the assertion
-            BY <5>2, <6>1, VotedInv DEF SafeAt, MsgInv, TypeOK, Messages
-          <6>2. CASE d = c
-            <7>1. VotedForIn(ma.acc, v, c)
-              BY <5>2 DEF MsgInv
-            <7>2. \A q \in Q, w \in Values : VotedForIn(q, w, c) => w = v
-              BY <7>1, VotedOnce, QuorumAssumption DEF TypeOK, Messages
-            <7>3. \A q \in Q : maxBal[q] > c
-              BY <5>0 DEF MsgInv, TypeOK, Messages
-            <7>. QED
-              BY <6>2, <7>2, <7>3 DEF WontVoteIn
-          <6>3. CASE d \in (c+1) .. (b-1)
-            \* By the last conjunct of MsgInv for type "1b" messages, no acceptor in Q
-            \* voted at any of these ballots.
-            BY <6>3, <5>0, <5>2 DEF MsgInv, TypeOK, Messages, WontVoteIn
-          <6>. QED  BY <6>1, <6>2, <6>3
-        <5>. QED  BY <5>0, <5>1, <5>2
+        <5>1. CASE b = 0 
+          <6>1. ~ \E c \in 0..(b-1) : c \in Ballots
+            BY <5>1 DEF SafeAt, Phase2a
+          <6>. QED BY <6>1 DEF SafeAt
+        <5>2. CASE b # 0
+            <6>2. PICK Q \in Quorums, 
+                       S \in SUBSET {m \in msgs : (m.type = "1b") /\ (m.bal = b)} :
+                         /\ \A a \in Q : \E m \in S : m.acc = a
+                         /\ \/ \A m \in S : m.maxVBal = -1
+                            \/ \E c \in 0..(b-1) : 
+                                  /\ \A m \in S : m.maxVBal =< c
+                                  /\ \E m \in S : /\ m.maxVBal = c
+                                                  /\ m.maxVal = v
+              BY <5>2, <4>2, Zenon
+            <6>3. CASE \A m \in S : m.maxVBal = -1
+              \* In that case, no acceptor in Q voted in any ballot less than b,
+              \* by the last conjunct of MsgInv for type "1b" messages, and that's enough
+              BY <6>3, <6>2 DEF TypeOK, MsgInv, SafeAt, WontVoteIn, Messages
+            <6>4. ASSUME NEW c \in 0 .. (b-1),
+                         \A m \in S : m.maxVBal =< c,
+                         NEW ma \in S, ma.maxVBal = c, ma.maxVal = v
+                  PROVE  SafeAt(v,b)
+              <7>. SUFFICES ASSUME NEW d \in 0 .. (b-1)
+                            PROVE  \E QQ \in Quorums : \A q \in QQ : 
+                                      VotedForIn(q,v,d) \/ WontVoteIn(q,d)
+                BY Zenon DEF SafeAt
+              <7>1. CASE d \in 0 .. (c-1)
+                \* The "1b" message for v with maxVBal value c must have been safe
+                \* according to MsgInv for "1b" messages and lemma VotedInv, 
+                \* and that proves the assertion
+                BY <6>4, <7>1, VotedInv DEF SafeAt, MsgInv, TypeOK, Messages
+              <7>2. CASE d = c
+                <8>1. VotedForIn(ma.acc, v, c)
+                  BY <6>4 DEF MsgInv
+                <8>2. \A q \in Q, w \in Values : VotedForIn(q, w, c) => w = v
+                  BY <8>1, VotedOnce, QuorumAssumption DEF TypeOK, Messages
+                <8>3. \A q \in Q : maxBal[q] > c
+                  BY <6>2 DEF MsgInv, TypeOK, Messages
+                <8>. QED
+                  BY <7>2, <8>2, <8>3 DEF WontVoteIn
+              <7>3. CASE d \in (c+1) .. (b-1)
+                \* By the last conjunct of MsgInv for type "1b" messages, no acceptor in Q
+                \* voted at any of these ballots.
+                BY <7>3, <6>2, <6>4 DEF MsgInv, TypeOK, Messages, WontVoteIn
+              <7>. QED  BY <7>1, <7>2, <7>3
+            <6>. QED  BY <6>2, <6>3, <6>4
+        <5>. QED BY <5>1, <5>2
       <4>11. SafeAt(mm.val,mm.bal)'
         BY <4>10, <2>1, SafeAtStable
       <4>. QED
@@ -517,7 +526,7 @@ THEOREM Refinement == Spec => C!Spec
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Jan 19 10:47:00 CET 2021 by alexis51151
+\* Last modified Fri Jan 22 20:42:21 CET 2021 by alexis51151
 \* Last modified Fri Jan 10 17:34:42 CET 2020 by merz
 \* Last modified Sun Oct 20 18:25:27 CEST 2019 by merz
 \* Last modified Fri Nov 28 10:39:17 PST 2014 by lamport
