@@ -1,30 +1,30 @@
-------------------------------- MODULE Paxos -------------------------------
+------------------------------- MODULE FastPaxos -------------------------------
 (***************************************************************************)
-(* This is a TLA+ specification of the Paxos Consensus algorithm,          *)
-(* described in                                                            *)
+(* This is a TLA+ specification of the FastPaxos Consensus algorithm,      *)
+(* described in FastPaxos:                                                 *)
+(*  https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/tr-2005-112.pdf *)
 (*                                                                         *)
-(*  Paxos Made Simple:                                                     *)
-(*   http://research.microsoft.com/en-us/um/people/lamport/pubs/pubs.html#paxos-simple *)
-(*                                                                         *)
-(* and a TLAPS-checked proof of its correctness.  This was mostly done as  *)
-(* a test to see how the SMT backend of TLAPS is now working.              *)
+(* The purpose of this work is to prepare for Refinement to prove EPaxos   *)
 (***************************************************************************)
 EXTENDS Integers, TLAPS, TLC
 
-CONSTANTS Acceptors, Values, Quorums
+CONSTANTS Acceptors, Values, Quorums(_)
 
+Ballots == Nat
 
-ASSUME QuorumAssumption == 
-          /\ Quorums \subseteq SUBSET Acceptors
-          /\ \A Q1, Q2 \in Quorums : Q1 \cap Q2 # {}                 
+ASSUME QuorumAssumption ==   /\ \A b \in Ballots : 
+                                Quorums(b) \subseteq SUBSET Acceptors
+                             /\ \A c, d \in Ballots : 
+                                \A Q1 \in Quorums(c), Q2 \in Quorums(d) : 
+                                    Q1 \cap Q2 # {}
 
 (***************************************************************************)
 (* The following lemma is an immediate consequence of the assumption.      *)
 (***************************************************************************)
-LEMMA QuorumNonEmpty == \A Q \in Quorums : Q # {}
-BY QuorumAssumption
 
-Ballots == Nat
+LEMMA QuorumNonEmpty == \A b \in Ballots : \A Q \in Quorums(b) : Q # {}
+BY QuorumAssumption           
+
 
 VARIABLES msgs,    \* The set of messages that have been sent.
           maxBal,  \* maxBal[a] is the highest-number ballot acceptor a
@@ -84,8 +84,8 @@ Phase1b(a) ==
 Phase2a(b) ==
   /\ ~ \E m \in msgs : (m.type = "2a") /\ (m.bal = b) 
   /\ \E v \in Values :
-       /\ \/ \E Q \in Quorums :
-            \E S \in SUBSET {m \in msgs : (m.type = "1b") /\ (m.bal = b)} :
+       /\ \/ \E Q \in Quorums(b) :
+             \E S \in SUBSET {m \in msgs : (m.type = "1b") /\ (m.bal = b)} :
                /\ \A a \in Q : \E m \in S : m.acc = a
                /\ \/ \A m \in S : m.maxVBal = -1
                   \/ \E c \in 0..(b-1) : 
@@ -130,7 +130,7 @@ VotedForIn(a, v, b) == \E m \in msgs : /\ m.type = "2b"
                                        /\ m.bal  = b
                                        /\ m.acc  = a
 
-ChosenIn(v, b) == \E Q \in Quorums :
+ChosenIn(v, b) == \E Q \in Quorums(b) :
                      \A a \in Q : VotedForIn(a, v, b)
 
 Chosen(v) == \E b \in Ballots : ChosenIn(v, b)
@@ -170,7 +170,7 @@ WontVoteIn(a, b) == /\ \A v \in Values : ~ VotedForIn(a, v, b)
 (***************************************************************************)                   
 SafeAt(v, b) == 
   \A c \in 0..(b-1) :
-    \E Q \in Quorums : 
+    \E Q \in Quorums(c) : 
       \A a \in Q : VotedForIn(a, v, c) \/ WontVoteIn(a, c)
 
 MsgInv ==
@@ -371,7 +371,7 @@ THEOREM Invariant == Spec => []Inv
       <4>1a. UNCHANGED <<maxBal, maxVBal, maxVal>>
         BY <3>3 DEF Phase2a
       <4>2. PICK v \in Values :
-               /\ \/  \E Q \in Quorums : 
+               /\ \/  \E Q \in Quorums(b) : 
                         \E S \in SUBSET {m \in msgs : (m.type = "1b") /\ (m.bal = b)} :
                             /\ \A a \in Q : \E m \in S : m.acc = a
                             /\ \/ \A m \in S : m.maxVBal = -1
@@ -396,7 +396,7 @@ THEOREM Invariant == Spec => []Inv
             BY <5>1 DEF SafeAt, Phase2a
           <6>. QED BY <6>1 DEF SafeAt
         <5>2. CASE b # 0
-            <6>2. PICK Q \in Quorums, 
+            <6>2. PICK Q \in Quorums(b), 
                        S \in SUBSET {m \in msgs : (m.type = "1b") /\ (m.bal = b)} :
                          /\ \A a \in Q : \E m \in S : m.acc = a
                          /\ \/ \A m \in S : m.maxVBal = -1
@@ -406,22 +406,29 @@ THEOREM Invariant == Spec => []Inv
                                                   /\ m.maxVal = v
               BY <5>2, <4>2, Zenon
             <6>3. CASE \A m \in S : m.maxVBal = -1
+                <7>1. \A a \in Q, c \in 0 .. (b-1) : 
+                        ~( \E vv \in Values : VotedForIn(a, vv, c))
+                    BY <6>3, <6>2 DEF MsgInv
+                <7>2. \A a \in Q, c \in 0 .. (b-1) :  maxBal[a] > c
+                    BY <6>2 DEF MsgInv, TypeOK, Messages
+                <7>3. \A a \in Q, c \in 0 .. (b-1) : WontVoteIn(a,c)
+                    BY <7>1, <7>2 DEF WontVoteIn
+                <7>. QED BY <7>3 DEF TypeOK, MsgInv, SafeAt, WontVoteIn, Messages
               \* In that case, no acceptor in Q voted in any ballot less than b,
               \* by the last conjunct of MsgInv for type "1b" messages, and that's enough
-              BY <6>3, <6>2 DEF TypeOK, MsgInv, SafeAt, WontVoteIn, Messages
             <6>4. ASSUME NEW c \in 0 .. (b-1),
                          \A m \in S : m.maxVBal =< c,
                          NEW ma \in S, ma.maxVBal = c, ma.maxVal = v
                   PROVE  SafeAt(v,b)
               <7>. SUFFICES ASSUME NEW d \in 0 .. (b-1)
-                            PROVE  \E QQ \in Quorums : \A q \in QQ : 
+                            PROVE  \E QQ \in Quorums(d) : \A q \in QQ : 
                                       VotedForIn(q,v,d) \/ WontVoteIn(q,d)
                 BY Zenon DEF SafeAt
               <7>1. CASE d \in 0 .. (c-1)
                 \* The "1b" message for v with maxVBal value c must have been safe
                 \* according to MsgInv for "1b" messages and lemma VotedInv, 
                 \* and that proves the assertion
-                BY <6>4, <7>1, VotedInv DEF SafeAt, MsgInv, TypeOK, Messages
+                BY <6>4, <7>1, VotedInv DEF SafeAt, MsgInv, TypeOK, Messages, QuorumAssumption
               <7>2. CASE d = c
                 <8>1. VotedForIn(ma.acc, v, c)
                   BY <6>4 DEF MsgInv
@@ -485,10 +492,10 @@ THEOREM Consistent == Spec => []Consistency
   <2>2. CASE b1 < b2
     <3>1. SafeAt(v2, b2)
       BY VotedInv, QuorumNonEmpty, QuorumAssumption DEF ChosenIn, Inv
-    <3>2. PICK Q2 \in Quorums : 
+    <3>2. PICK Q2 \in Quorums(b1) : 
                   \A a \in Q2 : VotedForIn(a, v2, b1) \/ WontVoteIn(a, b1)
       BY <3>1, <2>2 DEF SafeAt
-    <3>3. PICK Q1 \in Quorums : \A a \in Q1 : VotedForIn(a, v1, b1)
+    <3>3. PICK Q1 \in Quorums(b1) : \A a \in Q1 : VotedForIn(a, v1, b1)
       BY DEF ChosenIn
     <3>4 QED  BY <3>2, <3>3, QuorumAssumption, VotedOnce DEF WontVoteIn, Inv
   <2>. QED  BY <2>1, <2>2
@@ -526,7 +533,7 @@ THEOREM Refinement == Spec => C!Spec
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Jan 22 20:51:51 CET 2021 by alexis51151
+\* Last modified Wed Jan 27 14:41:12 CET 2021 by alexis51151
 \* Last modified Fri Jan 10 17:34:42 CET 2020 by merz
 \* Last modified Sun Oct 20 18:25:27 CEST 2019 by merz
 \* Last modified Fri Nov 28 10:39:17 PST 2014 by lamport
