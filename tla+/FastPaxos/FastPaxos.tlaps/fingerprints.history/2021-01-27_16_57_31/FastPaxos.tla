@@ -17,6 +17,7 @@ ASSUME QuorumAssumption ==   /\ \A b \in Ballots :
                              /\ \A c, d \in Ballots : 
                                 \A Q1 \in Quorums(c), Q2 \in Quorums(d) : 
                                     Q1 \cap Q2 # {}
+                             /\ \A c \in Ballots : \A d \in Ballots : d > c => Quorums(c) \subseteq Quorums(d)
 
 (***************************************************************************)
 (* The following lemma is an immediate consequence of the assumption.      *)
@@ -406,16 +407,9 @@ THEOREM Invariant == Spec => []Inv
                                                   /\ m.maxVal = v
               BY <5>2, <4>2, Zenon
             <6>3. CASE \A m \in S : m.maxVBal = -1
-                <7>1. \A a \in Q, c \in 0 .. (b-1) : 
-                        ~( \E vv \in Values : VotedForIn(a, vv, c))
-                    BY <6>3, <6>2 DEF MsgInv
-                <7>2. \A a \in Q, c \in 0 .. (b-1) :  maxBal[a] > c
-                    BY <6>2 DEF MsgInv, TypeOK, Messages
-                <7>3. \A a \in Q, c \in 0 .. (b-1) : WontVoteIn(a,c)
-                    BY <7>1, <7>2 DEF WontVoteIn
-                <7>. QED BY <7>3 DEF TypeOK, MsgInv, SafeAt, WontVoteIn, Messages
               \* In that case, no acceptor in Q voted in any ballot less than b,
               \* by the last conjunct of MsgInv for type "1b" messages, and that's enough
+               BY <6>3, <6>2 DEF TypeOK, MsgInv, SafeAt, WontVoteIn, Messages
             <6>4. ASSUME NEW c \in 0 .. (b-1),
                          \A m \in S : m.maxVBal =< c,
                          NEW ma \in S, ma.maxVBal = c, ma.maxVal = v
@@ -533,7 +527,7 @@ THEOREM Refinement == Spec => C!Spec
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Jan 27 14:41:12 CET 2021 by alexis51151
+\* Last modified Wed Jan 27 16:57:09 CET 2021 by alexis51151
 \* Last modified Fri Jan 10 17:34:42 CET 2020 by merz
 \* Last modified Sun Oct 20 18:25:27 CEST 2019 by merz
 \* Last modified Fri Nov 28 10:39:17 PST 2014 by lamport

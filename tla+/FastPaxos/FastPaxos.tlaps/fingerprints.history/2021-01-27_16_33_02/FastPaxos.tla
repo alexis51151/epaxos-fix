@@ -413,9 +413,7 @@ THEOREM Invariant == Spec => []Inv
                     BY <6>2 DEF MsgInv, TypeOK, Messages
                 <7>3. \A a \in Q, c \in 0 .. (b-1) : WontVoteIn(a,c)
                     BY <7>1, <7>2 DEF WontVoteIn
-                <7>4. \A c \in 0 .. (b-1), vv \in Values : ~ChosenIn(vv,c)
-                    BY <7>3 DEF ChosenIn, WontVoteIn 
-                <7>. QED BY <7>3 DEF TypeOK, MsgInv, SafeAt, WontVoteIn, Messages
+                <7>. QED BY <7>1, <7>2, <7>3 DEF TypeOK, MsgInv, SafeAt, WontVoteIn, Messages
               \* In that case, no acceptor in Q voted in any ballot less than b,
               \* by the last conjunct of MsgInv for type "1b" messages, and that's enough
             <6>4. ASSUME NEW c \in 0 .. (b-1),
@@ -535,7 +533,7 @@ THEOREM Refinement == Spec => C!Spec
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Jan 27 14:50:48 CET 2021 by alexis51151
+\* Last modified Wed Jan 27 15:03:01 CET 2021 by alexis51151
 \* Last modified Fri Jan 10 17:34:42 CET 2020 by merz
 \* Last modified Sun Oct 20 18:25:27 CEST 2019 by merz
 \* Last modified Fri Nov 28 10:39:17 PST 2014 by lamport
