@@ -1079,22 +1079,9 @@ Useful lemmas
  ***************************************************************************)
 LEMMA VotedInv == MsgInv /\ TypeOK => \A p \in Replicas, b \in Ballots, i \in Instances, D \in SUBSET Instances :
                     VotedForIn(D,i,p,b) => SafeAt(D,i,b) 
-  <1> SUFFICES ASSUME NEW p \in Replicas, NEW b \in Ballots, NEW i \in Instances, NEW D \in SUBSET Instances,
-                      VotedForIn(D,i,p,b),
-                      NEW b2 \in 0 .. (b-1)
-               PROVE  \E cleader \in Replicas : \E Q \in Quorums(cleader) : 
-                          \A r \in Q : VotedForIn(D,i,r,b2) \/ WontVoteIn(i,r,b2)
-    BY DEF SafeAt
-  <1>1. \E m \in msgs : /\ m.src = p
-                        /\ m.inst = i
-                        /\ m.ballot = b
-                        /\  \/ m.type = "accept"
-                            \/ m.type = "accept-reply"
-  BY DEF VotedForIn, Accept
-  <1>2. \E cleader \in Replicas : \E Q \in Quorums(cleader) : TRUE
-  BY <1>1, MsgInv DEF MsgInv, MsgInvAccept, MsgInvAcceptReply
-  <1> QED
 
+LEMMA VotedOnce == MsgInv => \A r1,r2 \in Replicas, b \in Ballots, i \in Instances, D1,D2 \in SUBSET Instances :
+                    VotedForIn(D1,i,r1,b) /\ VotedForIn(D2,i,r2,b) => r1 = r2
                     
 
                     
@@ -1107,6 +1094,6 @@ THEOREM Spec => ([]TypeOK) /\ Nontriviality /\ Stability /\ Consistency
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Feb 05 17:47:21 CET 2021 by alexis51151
+\* Last modified Sun Feb 07 18:48:30 CET 2021 by alexis51151
 \* Last modified Sat Aug 24 12:25:28 EDT 2013 by iulian
 \* Created Tue Apr 30 11:49:57 EDT 2013 by iulian
