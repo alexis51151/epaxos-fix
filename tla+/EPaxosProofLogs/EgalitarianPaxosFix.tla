@@ -170,6 +170,7 @@ TypeOK ==   /\ cmdLog \in [Replicas -> SUBSET [inst: Instances,
             /\ ballots \in Nat
             /\ preparing \in [Replicas -> SUBSET Instances]
             \* History vars
+            /\ msgs \in SUBSET Message
             /\ logs \in SUBSET [replica: Replicas,
                                        inst: Instances, 
                                        status: Status,
@@ -228,14 +229,14 @@ StartPhase1(C, cleader, Q, inst, ballot, oldMsg) ==
                                   cmd   : {C},
                                   deps  : {newDeps},
                                   seq   : {newSeq}]
-        /\ Send([type  : {"pre-accept"}, \* History variable
-                                  src   : {cleader},
-                                  dst   : Q \ {cleader},
-                                  inst  : {inst},
-                                  ballot: {ballot},
-                                  cmd   : {C},
-                                  deps  : {newDeps},
-                                  seq   : {newSeq}])
+        /\ Send([type   |-> "pre-accept", \* History variable
+                                  src       |-> cleader,
+                                  dst       |-> Q \ {cleader},
+                                  inst      |-> inst,
+                                  ballot    |-> ballot,
+                                  cmd       |-> C,
+                                  deps      |-> newDeps,
+                                  seq       |-> newSeq])
         /\ \E r \in logsSpace : /\ r =   [replica|-> cleader,
                                           inst   |-> inst,
                                           status |-> "pre-accepted",
@@ -398,14 +399,15 @@ Phase1Slow(cleader, i, Q) ==
                             cmd : {record.cmd},
                             deps : {finalDeps},
                             seq : {finalSeq}])
-                   /\ Send([type : {"accept"},
-                                src : {cleader},
-                                dst : SQ \ {cleader},
-                                inst : {i},
-                                ballot: {record.ballot},
-                                cmd : {record.cmd},
-                                deps : {finalDeps},
-                                seq : {finalSeq}])
+                   /\ \E m \in Message :    /\ m = [type    |-> "accept",
+                                                    src     |-> cleader,
+                                                    dst     |-> SQ \ {cleader},
+                                                    inst    |-> i,
+                                                    ballot  |->  record.ballot,
+                                                    cmd     |-> record.cmd,
+                                                    deps    |-> finalDeps,
+                                                    seq     |-> finalSeq]
+                                            /\ Send(m)
                    /\ \E r \in logsSpace :  /\  r = [replica |-> cleader,
                                                       inst   |-> i,
                                                       status |-> "accepted",
@@ -502,7 +504,7 @@ Phase2Finalize(cleader, i, Q) ==
                                               vbal   |-> record.vbal]
                                     /\  Store(r)
             /\ committed' = [committed EXCEPT ![i] = @ \cup 
-                               {<<record.cmd, record.deps, record.seq>>}]
+                                                     {<<record.cmd, record.deps, record.seq>>}]
             /\ leaderOfInst' = [leaderOfInst EXCEPT ![cleader] = @ \ {i}]
             /\ UNCHANGED << proposed, executed, crtInst, ballots, preparing >>
 
@@ -550,11 +552,11 @@ SendPrepare(replica, i, Q) ==
                      dst    : Q,
                      inst   : {i},
                      ballot : {<< ballots, replica >>}]
-    /\ Send([type   : {"prepare"},
-                     src    : {replica},
-                     dst    : Q,
-                     inst   : {i},
-                     ballot : {<< ballots, replica >>}])
+    /\ Send([type           |-> "prepare",
+                     src    |-> replica,
+                     dst    |-> Q,
+                     inst   |-> i,
+                     ballot |-> << ballots, replica >>])
     /\ ballots' = ballots + 1
     /\ preparing' = [preparing EXCEPT ![replica] = @ \cup {i}]
     /\ UNCHANGED << cmdLog, proposed, executed, crtInst,
@@ -687,14 +689,14 @@ PrepareFinalize(replica, i, Q) ==
                                   cmd   : {acc.cmd},
                                   deps  : {acc.deps},
                                   seq   : {acc.seq}]
-                        /\ Send([type  : {"accept"},
-                                  src   : {replica},
-                                  dst   : Q \ {replica},
-                                  inst  : {i},
-                                  ballot: {rec.ballot},
-                                  cmd   : {acc.cmd},
-                                  deps  : {acc.deps},
-                                  seq   : {acc.seq}])
+                        /\ Send([type       |-> "accept",
+                                  src       |-> replica,
+                                  dst       |-> Q \ {replica},
+                                  inst      |-> i,
+                                  ballot    |-> rec.ballot,
+                                  cmd       |-> acc.cmd,
+                                  deps      |-> acc.deps,
+                                  seq       |-> acc.seq])
                         /\ cmdLog' = [cmdLog EXCEPT ![replica] = (@ \ {rec}) \cup
                                 {[inst  |-> i,
                                   status|-> "accepted",
@@ -732,14 +734,14 @@ PrepareFinalize(replica, i, Q) ==
                                           cmd   : {pac.cmd},
                                           deps  : {pac.deps},
                                           seq   : {pac.seq}]
-                                 /\ Send([type  : {"accept"},
-                                          src   : {replica},
-                                          dst   : Q \ {replica},
-                                          inst  : {i},
-                                          ballot: {rec.ballot},
-                                          cmd   : {pac.cmd},
-                                          deps  : {pac.deps},
-                                          seq   : {pac.seq}])
+                                 /\ Send([type      |-> "accept",
+                                          src       |-> replica,
+                                          dst       |-> Q \ {replica},
+                                          inst      |-> i,
+                                          ballot    |-> rec.ballot,
+                                          cmd       |-> pac.cmd,
+                                          deps      |-> pac.deps,
+                                          seq       |-> pac.seq])
                                  /\ cmdLog' = [cmdLog EXCEPT ![replica] = (@ \ {rec}) \cup
                                         {[inst  |-> i,
                                           status|-> "accepted",
@@ -1024,9 +1026,12 @@ Accept(D,c,Q,b) == \E cleader \in Replicas : \A p \in Quorums(cleader):
                                 
 Committable(D,c,Q,b) == Accept(D,c,Q,b) \* No Fast Path in this version of EPaxos
 
-IsCommitted(D,c) == \E rec \in logs : /\ rec.cmd = c 
-                                      /\ rec.deps = D 
-                                      /\ rec.status = "committed"
+\*IsCommitted(D,c) == \E rec \in logs : /\ rec.cmd = c 
+\*                                      /\ rec.deps = D 
+\*                                      /\ rec.status = "committed"
+
+\* Redefinition of IsCommitted with var committed to make it simpler
+IsCommitted(D,c) == \E rec \in committed'\committed : \E seq \in Nat : rec = <<c, D, seq>> 
 
 IsCommittedAt(D,c,index) == /\ HIndex = index
                             /\ IsCommitted(D,c)
@@ -1046,6 +1051,7 @@ LEMMA NoCommitPhase1Slow == (\E cleader \in Replicas : \E inst \in leaderOfInst[
                                     => UNCHANGED committed
 BY DEF Phase1Slow
 
+
 LEMMA NoCommitPropose == (\E C \in (Commands\proposed) : \E cleader \in Replicas : Propose(C, cleader))
                             => UNCHANGED committed
 BY DEF Propose
@@ -1055,6 +1061,7 @@ BY DEF Propose
 LEMMA NoCommitPhase1Reply == (\E replica \in Replicas : Phase1Reply(replica))
                                 => UNCHANGED committed
 BY DEF Phase1Reply
+
 
 LEMMA NoCommitPhase2Reply == (\E replica \in Replicas : Phase2Reply(replica))
                                 => UNCHANGED committed
@@ -1130,16 +1137,22 @@ LEMMA test == (\E cleader \in Replicas : \E record \in cmdLog[cleader], i \in In
                 => \E rec \in logs' : rec.status = "committed" 
 BY DEF logsSpace, Store
 
+LEMMA IsCommittedImpliesCommittedChanged == (\E D \in SUBSET Instances, c \in Commands : IsCommitted(D,c))
+                                            => committed' # committed
+BY DEF IsCommitted
+
+\* Step 1 to prove IsCommitted => Committable 
+LEMMA IsCommittedNext == (Next /\ (\E D \in SUBSET Instances, c \in Commands : IsCommitted(D,c))) 
+                        =>  (\/ (\E cleader \in Replicas : \E inst \in leaderOfInst[cleader]: 
+                                                \E Q \in SlowQuorums(cleader) : Phase2Finalize(cleader, inst, Q))
+                             \/ (\E replica \in Replicas : \E cmsg \in sentMsg : (cmsg.type = "commit" /\ Commit(replica, cmsg))))
+BY CommitNext, IsCommittedImpliesCommittedChanged
 
 
-
-\* Lemma pretty obvious that is admitted for now                                                                           
-LEMMA CommittedImpliesLogsCommitted == (committed' # committed) => (\E D \in (SUBSET Instances), c \in Commands : IsCommitted(D,c))
-
-LEMMA NextAndCommitLogs == (Next /\ (committed' # committed)) => (Next /\ (\E D \in (SUBSET Instances), c \in Commands : IsCommitted(D,c)))
-BY CommittedImpliesLogsCommitted
-
-
+LEMMA NoCommitMsgPhase1Slow == (\E cleader \in Replicas : \E inst \in leaderOfInst[cleader]: 
+                                \E Q \in SlowQuorums(cleader) : Phase1Slow(cleader, inst, Q))
+                                    => \E m \in Message : m.type = "accept" 
+BY DEF Phase1Slow, Send
 
 
 
@@ -1156,6 +1169,6 @@ THEOREM Spec => ([]TypeOK) /\ Nontriviality /\ Stability /\ Consistency
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Mar 03 08:46:21 CET 2021 by alexis51151
+\* Last modified Sat Mar 06 19:01:54 CET 2021 by alexis51151
 \* Last modified Sat Aug 24 12:25:28 EDT 2013 by iulian
 \* Created Tue Apr 30 11:49:57 EDT 2013 by iulian
